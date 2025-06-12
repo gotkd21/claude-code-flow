@@ -8,6 +8,8 @@ import { configCommand } from './simple-commands/config.js';
 import { statusCommand } from './simple-commands/status.js';
 import { mcpCommand } from './simple-commands/mcp.js';
 import { monitorCommand } from './simple-commands/monitor.js';
+import { startCommand } from './simple-commands/start.js';
+import { swarmCommand } from './simple-commands/swarm.js';
 
 // Command registry for extensible CLI
 export const commandRegistry = new Map();
@@ -96,6 +98,18 @@ export function registerCoreCommands() {
     ]
   });
 
+  commandRegistry.set('start', {
+    handler: startCommand,
+    description: 'Start the Claude-Flow orchestration system',
+    usage: 'start [--daemon] [--port <number>] [--mcp-transport <type>]',
+    examples: [
+      'start',
+      'start --daemon',
+      'start --port 3000',
+      'start --mcp-transport http'
+    ]
+  });
+
   commandRegistry.set('mcp', {
     handler: mcpCommand,
     description: 'Manage MCP server and tools',
@@ -117,6 +131,18 @@ export function registerCoreCommands() {
       'monitor --watch',
       'monitor --interval 1000 --watch',
       'monitor --format json'
+    ]
+  });
+
+  commandRegistry.set('swarm', {
+    handler: swarmCommand,
+    description: 'Create self-orchestrating Claude agent swarms',
+    usage: 'swarm <objective> [options]',
+    examples: [
+      'swarm "Build a REST API"',
+      'swarm "Research cloud architecture" --research',
+      'swarm "Analyze codebase" --strategy analysis --max-agents 3',
+      'swarm "Debug authentication" --review --monitor --dry-run'
     ]
   });
 }

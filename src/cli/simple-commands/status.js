@@ -1,5 +1,11 @@
 // status.js - System status and monitoring commands
 import { printSuccess, printError, printWarning } from '../utils.js';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function statusCommand(subArgs, flags) {
   const verbose = subArgs.includes('--verbose') || subArgs.includes('-v') || flags.verbose;
@@ -15,14 +21,12 @@ export async function statusCommand(subArgs, flags) {
 }
 
 async function getSystemStatus(verbose = false) {
+  const orchestratorStatus = await checkOrchestratorStatus();
+  
   const status = {
     timestamp: Date.now(),
     version: '1.0.30',
-    orchestrator: {
-      running: false,
-      uptime: 0,
-      status: 'Not Running'
-    },
+    orchestrator: orchestratorStatus,
     agents: {
       active: 0,
       total: 0,
@@ -205,4 +209,75 @@ function formatUptime(milliseconds) {
   if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
   if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
   return `${seconds}s`;
+}
+
+async function checkOrchestratorStatus() {
+  try {
+    // Simple approach: check for running deno processes with claude-flow
+    const { execSync } = await import('node:child_process');
+    
+    try {
+      const result = execSync('ps aux | grep -E "deno.*claude-flow.*start" | grep -v grep', { 
+        encoding: 'utf8',
+        stdio: 'pipe'
+      });
+      
+      if (result.trim()) {
+        // Parse the process info
+        const lines = result.trim().split('\n');
+        if (lines.length > 0) {
+          const processInfo = lines[0].split(/\s+/);
+          const pid = parseInt(processInfo[1], 10);
+          
+          return {
+            running: true,
+            uptime: 0, // We can't easily get uptime without PID file timestamps
+            status: 'Running',
+            pid: pid
+          };
+        }
+      }
+    } catch (err) {
+      // ps command failed or no processes found
+    }
+    
+    // Check PID file as backup method
+    const pidFile = path.join(__dirname, '../../../', '.claude-flow', 'orchestrator.pid');
+    if (fs.existsSync(pidFile)) {
+      const pidString = fs.readFileSync(pidFile, 'utf8').trim();
+      const pid = parseInt(pidString, 10);
+      
+      if (!isNaN(pid)) {
+        try {
+          process.kill(pid, 0); // Signal 0 tests if process exists
+          const startTime = fs.statSync(pidFile).mtime.getTime();
+          const uptime = Date.now() - startTime;
+          
+          return {
+            running: true,
+            uptime: uptime,
+            status: 'Running',
+            pid: pid
+          };
+        } catch (err) {
+          // Process doesn't exist, clean up stale PID file
+          fs.unlinkSync(pidFile);
+        }
+      }
+    }
+    
+    return {
+      running: false,
+      uptime: 0,
+      status: 'Not Running',
+      pid: null
+    };
+  } catch (error) {
+    return {
+      running: false,
+      uptime: 0,
+      status: `Error checking status: ${error.message}`,
+      pid: null
+    };
+  }
 }

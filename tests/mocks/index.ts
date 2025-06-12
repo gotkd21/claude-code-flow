@@ -2,8 +2,9 @@
  * Comprehensive mock implementations for testing
  */
 
-import { stub } from "https://deno.land/std@0.220.0/testing/mock.ts";
+import { stub, spy } from "https://deno.land/std@0.220.0/testing/mock.ts";
 import type { Spy } from "https://deno.land/std@0.220.0/testing/mock.ts";
+import { AgentProfile, Task } from '../../src/utils/types.ts';
 
 // Since we can't import the actual interfaces yet, we'll define minimal interfaces
 interface IEventBus {
@@ -27,6 +28,7 @@ interface ITerminalManager {
   spawnTerminal(profile: any): Promise<string>;
   terminateTerminal(terminalId: string): Promise<void>;
   sendCommand(terminalId: string, command: any): Promise<string>;
+  executeCommand(terminalId: string, command: string): Promise<string>;
 }
 
 interface IMemoryManager {
@@ -55,10 +57,10 @@ interface IMCPServer {
 
 // Helper function to create spy
 function createSpy<T extends (...args: any[]) => any>(implementation?: T): Spy<any, any> & T {
-  const mockObj = {};
+  const mockObj = {} as Record<string, any>;
   const methodName = 'spyMethod';
   mockObj[methodName] = implementation || (() => {});
-  return stub(mockObj, methodName) as any;
+  return stub(mockObj, methodName as any) as any;
 }
 
 /**
@@ -175,6 +177,15 @@ export class MockTerminalManager implements ITerminalManager {
     
     const commandStr = typeof command === 'string' ? command : command.command || 'unknown';
     const output = `Mock output for: ${commandStr}`;
+    terminal.output.push(output);
+    return output;
+  });
+
+  executeCommand = createSpy(async (terminalId: string, command: string): Promise<string> => {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) throw new Error(`Terminal not found: ${terminalId}`);
+    
+    const output = `Mock execute output for: ${command}`;
     terminal.output.push(output);
     return output;
   });

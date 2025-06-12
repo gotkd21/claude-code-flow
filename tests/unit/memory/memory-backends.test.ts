@@ -6,8 +6,8 @@ import { describe, it, beforeEach, afterEach } from "https://deno.land/std@0.220
 import { assertEquals, assertExists, assertRejects, assertThrows } from "https://deno.land/std@0.220.0/assert/mod.ts";
 import { FakeTime } from "https://deno.land/std@0.220.0/testing/time.ts";
 
-import { SQLiteMemoryBackend } from '../../../src/memory/backends/sqlite.ts';
-import { MarkdownMemoryBackend } from '../../../src/memory/backends/markdown.ts';
+import { SQLiteBackend } from '../../../src/memory/backends/sqlite.ts';
+import { MarkdownBackend } from '../../../src/memory/backends/markdown.ts';
 import { 
   AsyncTestUtils, 
   MemoryTestUtils, 
@@ -36,15 +36,17 @@ describe('Memory Backends - Comprehensive Tests', () => {
   });
 
   describe('SQLite Memory Backend', () => {
-    let backend: SQLiteMemoryBackend;
+    let backend: SQLiteBackend;
 
     beforeEach(async () => {
-      backend = new SQLiteMemoryBackend({
-        dbPath: `${tempDir}/test-memory.db`,
-        maxConnections: 10,
-        busyTimeout: 5000,
-        enableWal: true,
-      });
+      // Create a mock logger
+      const mockLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      };
+      backend = new SQLiteBackend(`${tempDir}/test-memory.db`, mockLogger as any);
       
       await backend.initialize();
     });
@@ -163,7 +165,7 @@ describe('Memory Backends - Comprehensive Tests', () => {
         assertEquals(entries.length >= 1, true);
         
         // All entries should be from 'test' namespace
-        entries.forEach(entry => {
+        entries.forEach((entry: any) => {
           assertEquals(entry.namespace, 'test');
         });
       });
@@ -214,8 +216,8 @@ describe('Memory Backends - Comprehensive Tests', () => {
         assertEquals(page2.length >= 1, true);
         
         // No overlap between pages
-        const page1Keys = new Set(page1.map(e => e.key));
-        const page2Keys = new Set(page2.map(e => e.key));
+        const page1Keys = new Set(page1.map((e: any) => e.key));
+        const page2Keys = new Set(page2.map((e: any) => e.key));
         const intersection = new Set([...page1Keys].filter(k => page2Keys.has(k)));
         assertEquals(intersection.size, 0);
       });
@@ -285,8 +287,8 @@ describe('Memory Backends - Comprehensive Tests', () => {
           { iterations: 100, concurrency: 5 }
         );
 
-        TestAssertions.assertInRange(stats.mean, 0, 100); // Should be fast
-        console.log(`SQLite bulk write performance: ${stats.mean.toFixed(2)}ms average`);
+        TestAssertions.assertInRange(stats.stats.mean, 0, 100); // Should be fast
+        console.log(`SQLite bulk write performance: ${stats.stats.mean.toFixed(2)}ms average`);
       });
 
       it('should handle concurrent operations', async () => {
@@ -328,8 +330,8 @@ describe('Memory Backends - Comprehensive Tests', () => {
           { iterations: 10 }
         );
 
-        TestAssertions.assertInRange(stats.mean, 0, 500); // Should be reasonable
-        console.log(`SQLite large dataset search: ${stats.mean.toFixed(2)}ms average`);
+        TestAssertions.assertInRange(stats.stats.mean, 0, 500); // Should be reasonable
+        console.log(`SQLite large dataset search: ${stats.stats.mean.toFixed(2)}ms average`);
       });
 
       it('should handle memory efficiently', async () => {
@@ -390,7 +392,7 @@ describe('Memory Backends - Comprehensive Tests', () => {
               assertExists(retrieved);
             } catch (error) {
               // Some edge cases may legitimately fail
-              console.log(`Edge case ${category}-${name} failed: ${error.message}`);
+              console.log(`Edge case ${category}-${name} failed: ${error instanceof Error ? error.message : String(error)}`);
             }
           }
         }
@@ -431,7 +433,7 @@ describe('Memory Backends - Comprehensive Tests', () => {
           assertEquals(retrieved.value.data.length, largeValue.data.length);
         } catch (error) {
           // May fail on systems with limited disk space
-          console.log(`Large value test failed: ${error.message}`);
+          console.log(`Large value test failed: ${error instanceof Error ? error.message : String(error)}`);
         }
       });
     });
@@ -699,7 +701,7 @@ function hello() {
 
         assertEquals(results.length, 2);
         
-        const titles = results.map(r => r.value.title);
+        const titles = results.map((r: any) => r.value.title);
         assertEquals(titles.includes('JavaScript Guide'), true);
         assertEquals(titles.includes('Python Tutorial'), true);
       });
@@ -754,8 +756,8 @@ function hello() {
           { iterations: 50, concurrency: 3 }
         );
 
-        TestAssertions.assertInRange(stats.mean, 0, 200); // Should be reasonable
-        console.log(`Markdown backend performance: ${stats.mean.toFixed(2)}ms average`);
+        TestAssertions.assertInRange(stats.stats.mean, 0, 200); // Should be reasonable
+        console.log(`Markdown backend performance: ${stats.stats.mean.toFixed(2)}ms average`);
       });
 
       it('should clean up deleted files', async () => {
@@ -926,12 +928,12 @@ function hello() {
         { iterations: 50 }
       );
 
-      console.log(`SQLite backend: ${sqliteStats.mean.toFixed(2)}ms average`);
-      console.log(`Markdown backend: ${markdownStats.mean.toFixed(2)}ms average`);
+      console.log(`SQLite backend: ${sqliteStats.stats.mean.toFixed(2)}ms average`);
+      console.log(`Markdown backend: ${markdownStats.stats.mean.toFixed(2)}ms average`);
       
       // Both should be reasonably fast
-      TestAssertions.assertInRange(sqliteStats.mean, 0, 500);
-      TestAssertions.assertInRange(markdownStats.mean, 0, 500);
+      TestAssertions.assertInRange(sqliteStats.stats.mean, 0, 500);
+      TestAssertions.assertInRange(markdownStats.stats.mean, 0, 500);
     });
 
     it('should handle migration scenarios', async () => {

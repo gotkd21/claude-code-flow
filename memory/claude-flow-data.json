@@ -1,5 +1,71 @@
 {
   "agents": [],
-  "tasks": [],
-  "lastUpdated": 1749659144815
+  "tasks": [
+    {
+      "id": "task_1749679684919_j795d5el3",
+      "type": "research",
+      "description": "analyze codebase architecture",
+      "priority": 5,
+      "status": "pending",
+      "dependencies": [],
+      "metadata": {},
+      "assignedAgent": null,
+      "progress": 0,
+      "error": null,
+      "createdAt": 1733948884919
+    },
+    {
+      "id": "task_1749679738704_me5vs51yy",
+      "type": "code",
+      "description": "implement REST API endpoints",
+      "priority": 5,
+      "status": "pending",
+      "dependencies": [],
+      "metadata": {},
+      "assignedAgent": null,
+      "progress": 0,
+      "error": null,
+      "createdAt": 1733948938704
+    },
+    {
+      "id": "task_1749679772449_0csz8z9x3",
+      "type": "research",
+      "description": "test orchestrator communication",
+      "priority": 5,
+      "status": "pending",
+      "dependencies": [],
+      "metadata": {},
+      "assignedAgent": null,
+      "progress": 0,
+      "error": null,
+      "createdAt": 1733948972449
+    },
+    {
+      "id": "task_1749680973939_n5mea06vn",
+      "type": "research",
+      "description": "analyze common requirements for a montecarlo analysis retirement planner",
+      "priority": 5,
+      "status": "queued",
+      "createdAt": "2025-06-11T22:29:33.939Z",
+      "updatedAt": "2025-06-11T22:29:33.939Z",
+      "assignedAgent": null,
+      "progress": 0,
+      "results": null,
+      "error": null
+    },
+    {
+      "id": "task_1749682352391_b045c9ao2",
+      "type": "research",
+      "description": "analyze common requirements for a montecarlo analysis retirement planner",
+      "priority": 5,
+      "status": "queued",
+      "createdAt": "2025-06-11T22:52:32.392Z",
+      "updatedAt": "2025-06-11T22:52:32.392Z",
+      "assignedAgent": null,
+      "progress": 0,
+      "results": null,
+      "error": null
+    }
+  ],
+  "lastUpdated": 1733952000000
 }

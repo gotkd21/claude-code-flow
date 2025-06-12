@@ -3,52 +3,27 @@
 
 const { spawn } = require('child_process');
 const path = require('path');
-const fs = require('fs');
+
+// Path to the simple CLI JavaScript file (sparc-implementation branch)
+const mainFile = path.join(__dirname, '..', 'src', 'cli', 'simple-cli.js');
+
+// Check if deno is available - try local installation first
 const os = require('os');
-
-// Check if Deno is installed
-function checkDeno() {
-  try {
-    const denoPath = process.env.PATH.includes('.deno/bin') ? 'deno' : path.join(os.homedir(), '.deno', 'bin', 'deno');
-    require('child_process').execSync(`${denoPath} --version`, { stdio: 'ignore' });
-    return denoPath;
-  } catch {
-    try {
-      require('child_process').execSync('deno --version', { stdio: 'ignore' });
-      return 'deno';
-    } catch {
-      return null;
-    }
-  }
-}
-
-const denoPath = checkDeno();
-
-if (!denoPath) {
-  console.error('Error: Deno is not installed.');
-  console.error('');
-  console.error('Please install Deno first:');
-  console.error('  curl -fsSL https://deno.land/x/install/install.sh | sh');
-  console.error('');
-  console.error('Or on Windows:');
-  console.error('  irm https://deno.land/install.ps1 | iex');
-  process.exit(1);
-}
-
-// Use the simple CLI JavaScript file which works well
-const cliPath = path.join(__dirname, '..', 'src', 'cli', 'simple-cli.js');
-
-// Run the CLI with Deno
-const deno = spawn(denoPath, ['run', '--allow-all', '--no-check', cliPath, ...process.argv.slice(2)], {
-  stdio: 'inherit',
-  cwd: path.join(__dirname, '..')
+const denoPath = path.join(os.homedir(), '.deno', 'bin', 'deno');
+const deno = spawn(denoPath, ['run', '--allow-all', '--quiet', mainFile, ...process.argv.slice(2)], {
+  stdio: 'inherit'
 });
 
 deno.on('error', (err) => {
-  console.error('Failed to start Claude-Flow:', err.message);
+  if (err.code === 'ENOENT') {
+    console.error('Error: Deno is required but not found in PATH');
+    console.error('Please install Deno: https://deno.land/manual/getting_started/installation');
+    process.exit(1);
+  }
+  console.error('Error running claude-flow:', err.message);
   process.exit(1);
 });
 
 deno.on('close', (code) => {
-  process.exit(code || 0);
+  process.exit(code);
 });

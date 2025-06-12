@@ -6,11 +6,49 @@ import { IMemoryBackend } from './base.ts';
 import { MemoryEntry, MemoryQuery } from '../../utils/types.ts';
 import { ILogger } from '../../core/logger.ts';
 import { MemoryBackendError } from '../../utils/errors.ts';
+import { DB } from "https://deno.land/x/sqlite@v3.9.1/mod.ts";
 
-// SQLite bindings placeholder - in real implementation, use a proper SQLite library
+// Type for SQLite query parameters
+type SQLiteParam = string | number | boolean | null | undefined;
+
+// SQLite wrapper to match expected interface
 interface Database {
   execute(sql: string, params?: unknown[]): Promise<unknown[]>;
   close(): Promise<void>;
+}
+
+class SQLiteWrapper implements Database {
+  constructor(private db: DB) {}
+
+  async execute(sql: string, params?: unknown[]): Promise<unknown[]> {
+    try {
+      const trimmedSql = sql.trim().toUpperCase();
+      
+      // Convert unknown[] to SQLiteParam[] for type safety
+      const sqliteParams: SQLiteParam[] = params ? params.map(p => 
+        p === undefined ? null : p as SQLiteParam
+      ) : [];
+      
+      // Check if this is a query that returns data
+      if (trimmedSql.startsWith('SELECT') || 
+          trimmedSql.includes('PRAGMA') ||
+          trimmedSql.startsWith('EXPLAIN')) {
+        // Query operation - return rows
+        const rows = this.db.query(sql, sqliteParams);
+        return Array.isArray(rows) ? rows : [];
+      } else {
+        // Non-query operation (INSERT, UPDATE, DELETE, CREATE, etc.)
+        this.db.query(sql, sqliteParams);
+        return [];
+      }
+    } catch (error) {
+      throw new Error(`SQLite operation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async close(): Promise<void> {
+    this.db.close();
+  }
 }
 
 /**
@@ -28,14 +66,12 @@ export class SQLiteBackend implements IMemoryBackend {
     this.logger.info('Initializing SQLite backend', { dbPath: this.dbPath });
 
     try {
-      // In real implementation, open SQLite connection
-      // this.db = await openDatabase(this.dbPath);
+      // Open SQLite connection
+      const sqliteDb = new DB(this.dbPath);
+      this.db = new SQLiteWrapper(sqliteDb);
 
-      // Create tables
-      await this.createTables();
-
-      // Create indexes
-      await this.createIndexes();
+      // Initialize schema versioning
+      await this.initializeSchema();
 
       this.logger.info('SQLite backend initialized');
     } catch (error) {
@@ -99,7 +135,7 @@ export class SQLiteBackend implements IMemoryBackend {
         return undefined;
       }
 
-      return this.rowToEntry(rows[0] as Record<string, unknown>);
+      return this.rowToEntry(rows[0] as unknown[]);
     } catch (error) {
       throw new MemoryBackendError('Failed to retrieve entry', { error });
     }
@@ -187,7 +223,7 @@ export class SQLiteBackend implements IMemoryBackend {
 
     try {
       const rows = await this.db.execute(sql, params);
-      return rows.map(row => this.rowToEntry(row as Record<string, unknown>));
+      return rows.map(row => this.rowToEntry(row as unknown[]));
     } catch (error) {
       throw new MemoryBackendError('Failed to query entries', { error });
     }
@@ -202,7 +238,7 @@ export class SQLiteBackend implements IMemoryBackend {
     
     try {
       const rows = await this.db.execute(sql);
-      return rows.map(row => this.rowToEntry(row as Record<string, unknown>));
+      return rows.map(row => this.rowToEntry(row as unknown[]));
     } catch (error) {
       throw new MemoryBackendError('Failed to get all entries', { error });
     }
@@ -225,15 +261,18 @@ export class SQLiteBackend implements IMemoryBackend {
       await this.db.execute('SELECT 1');
 
       // Get metrics
-      const [countResult] = await this.db.execute(
+      const countResults = await this.db.execute(
         'SELECT COUNT(*) as count FROM memory_entries',
       );
-      const entryCount = (countResult as any).count;
+      const entryCount = countResults.length > 0 ? (countResults[0] as unknown[])[0] as number : 0;
 
-      const [sizeResult] = await this.db.execute(
-        'SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()',
-      );
-      const dbSize = (sizeResult as any).size;
+      // Use separate pragma queries for database size
+      const pageCountResults = await this.db.execute('PRAGMA page_count');
+      const pageSizeResults = await this.db.execute('PRAGMA page_size');
+      
+      const pageCount = pageCountResults.length > 0 ? (pageCountResults[0] as unknown[])[0] as number : 0;
+      const pageSize = pageSizeResults.length > 0 ? (pageSizeResults[0] as unknown[])[0] as number : 0;
+      const dbSize = pageCount * pageSize;
 
       return {
         healthy: true,
@@ -250,7 +289,112 @@ export class SQLiteBackend implements IMemoryBackend {
     }
   }
 
+  private async initializeSchema(): Promise<void> {
+    // Create schema version table first
+    await this.createSchemaVersionTable();
+
+    // Get current schema version
+    const currentVersion = await this.getCurrentSchemaVersion();
+    this.logger.info('Current schema version', { version: currentVersion });
+
+    // Run migrations to latest version
+    await this.migrateToLatest(currentVersion);
+  }
+
+  private async createSchemaVersionTable(): Promise<void> {
+    const sql = `
+      CREATE TABLE IF NOT EXISTS schema_version (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        description TEXT
+      )
+    `;
+    await this.db!.execute(sql);
+  }
+
+  private async getCurrentSchemaVersion(): Promise<number> {
+    try {
+      const results = await this.db!.execute(
+        'SELECT MAX(version) as version FROM schema_version'
+      );
+      
+      this.logger.info('Schema version query results', { results });
+      
+      if (results.length > 0 && (results[0] as unknown[])[0] !== null) {
+        const version = (results[0] as unknown[])[0] as number;
+        this.logger.info('Found schema version', { version });
+        return version;
+      }
+      
+      this.logger.info('No schema version found, returning 0');
+      return 0; // No version found, start from 0
+    } catch (error) {
+      this.logger.warn('Failed to get schema version, assuming version 0', { error });
+      return 0;
+    }
+  }
+
+  private async migrateToLatest(currentVersion: number): Promise<void> {
+    const targetVersion = 1; // Current latest version
+    
+    this.logger.info('Migration check', { currentVersion, targetVersion });
+    
+    if (currentVersion >= targetVersion) {
+      this.logger.info('Schema is up to date', { currentVersion, targetVersion });
+      return;
+    }
+
+    this.logger.info('Running schema migrations', { from: currentVersion, to: targetVersion });
+
+    // Run migrations in sequence
+    for (let version = currentVersion + 1; version <= targetVersion; version++) {
+      this.logger.info('About to run migration', { version });
+      await this.runMigration(version);
+    }
+    
+    this.logger.info('All migrations completed');
+  }
+
+  private async runMigration(version: number): Promise<void> {
+    this.logger.info('Running migration', { version });
+
+    try {
+      switch (version) {
+        case 1:
+          this.logger.info('Executing migration_001_initial_schema');
+          await this.migration_001_initial_schema();
+          this.logger.info('migration_001_initial_schema completed');
+          break;
+        default:
+          throw new Error(`Unknown migration version: ${version}`);
+      }
+
+      // Record successful migration
+      this.logger.info('Recording migration completion');
+      await this.recordMigration(version);
+      this.logger.info('Migration completed', { version });
+    } catch (error) {
+      this.logger.error('Migration failed', { version, error });
+      throw new MemoryBackendError(`Migration ${version} failed`, { error });
+    }
+  }
+
+  private async migration_001_initial_schema(): Promise<void> {
+    // Create the main memory_entries table
+    await this.createTables();
+    // Create indexes for the table
+    await this.createIndexes();
+  }
+
+  private async recordMigration(version: number): Promise<void> {
+    await this.db!.execute(
+      'INSERT INTO schema_version (version, description) VALUES (?, ?)',
+      [version, `Migration to version ${version}`]
+    );
+  }
+
   private async createTables(): Promise<void> {
+    this.logger.info('Creating memory_entries table');
     const sql = `
       CREATE TABLE IF NOT EXISTS memory_entries (
         id TEXT PRIMARY KEY,
@@ -270,6 +414,7 @@ export class SQLiteBackend implements IMemoryBackend {
     `;
 
     await this.db!.execute(sql);
+    this.logger.info('memory_entries table created successfully');
   }
 
   private async createIndexes(): Promise<void> {
@@ -286,44 +431,30 @@ export class SQLiteBackend implements IMemoryBackend {
     }
   }
 
-  private rowToEntry(row: Record<string, unknown>): MemoryEntry {
+  private rowToEntry(row: unknown[]): MemoryEntry {
+    // SQLite returns rows as arrays in column order:
+    // id, agent_id, session_id, type, content, context, timestamp, tags, version, parent_id, metadata
     const entry: MemoryEntry = {
-      id: row.id as string,
-      agentId: row.agent_id as string,
-      sessionId: row.session_id as string,
-      type: row.type as MemoryEntry['type'],
-      content: row.content as string,
-      context: JSON.parse(row.context as string),
-      timestamp: new Date(row.timestamp as string),
-      tags: JSON.parse(row.tags as string),
-      version: row.version as number,
+      id: row[0] as string,
+      agentId: row[1] as string,
+      sessionId: row[2] as string,
+      type: row[3] as MemoryEntry['type'],
+      content: row[4] as string,
+      context: JSON.parse(row[5] as string),
+      timestamp: new Date(row[6] as string),
+      tags: JSON.parse(row[7] as string),
+      version: row[8] as number,
     };
     
-    if (row.parent_id) {
-      entry.parentId = row.parent_id as string;
+    if (row[9] !== null) {
+      entry.parentId = row[9] as string;
     }
     
-    if (row.metadata) {
-      entry.metadata = JSON.parse(row.metadata as string);
+    if (row[10] !== null) {
+      entry.metadata = JSON.parse(row[10] as string);
     }
     
     return entry;
   }
 }
 
-// Placeholder implementation - replace with actual SQLite library
-async function openDatabase(path: string): Promise<Database> {
-  // In real implementation, use a proper SQLite library like:
-  // - https://deno.land/x/sqlite
-  // - https://deno.land/x/sqlite3
-  
-  return {
-    async execute(sql: string, params?: unknown[]): Promise<unknown[]> {
-      // Placeholder
-      return [];
-    },
-    async close(): Promise<void> {
-      // Placeholder
-    },
-  };
-}

@@ -399,8 +399,10 @@ export class MemoryManager implements IMemoryManager {
   private createBackend(): IMemoryBackend {
     switch (this.config.backend) {
       case 'sqlite':
+        // Use project-specific database location in memory/ directory
+        const dbPath = this.config.sqlitePath || './memory/claude-flow.db';
         return new SQLiteBackend(
-          this.config.sqlitePath || './claude-flow.db',
+          dbPath,
           this.logger,
         );
       case 'markdown':
@@ -410,9 +412,10 @@ export class MemoryManager implements IMemoryManager {
         );
       case 'hybrid':
         // Use SQLite for structured data and Markdown for human-readable backup
+        const hybridDbPath = this.config.sqlitePath || './memory/claude-flow.db';
         return new HybridBackend(
           new SQLiteBackend(
-            this.config.sqlitePath || './claude-flow.db',
+            hybridDbPath,
             this.logger,
           ),
           new MarkdownBackend(
