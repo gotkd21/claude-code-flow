@@ -135,6 +135,22 @@ export class MCPMethodNotFoundError extends MCPError {
   }
 }
 
+export class MCPConnectionError extends MCPError {
+  override readonly code = 'MCP_CONNECTION_ERROR';
+  
+  constructor(message: string, details?: unknown) {
+    super(message, details);
+  }
+}
+
+export class MCPTimeoutError extends MCPError {
+  override readonly code = 'MCP_TIMEOUT_ERROR';
+  
+  constructor(message: string, details?: unknown) {
+    super(message, details);
+  }
+}
+
 /**
  * Configuration errors
  */

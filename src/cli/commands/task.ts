@@ -4,8 +4,8 @@
 
 import { Command } from '@cliffy/command';
 import { colors } from '@cliffy/ansi/colors';
-import { Task } from '../../utils/types.ts';
-import { generateId } from '../../utils/helpers.ts';
+import { UnifiedTask, UnifiedTaskStatus } from '../../utils/unified-types.ts';
+import { TaskTransformer, DateUtils } from '../../utils/data-transformers.ts';
 
 export const taskCommand = new Command()
   .description('Manage tasks')
@@ -20,17 +20,14 @@ export const taskCommand = new Command()
     .option('-i, --input <input:string>', 'Task input as JSON')
     .option('-a, --assign <agent:string>', 'Assign to specific agent')
     .action(async (options: any, type: string, description: string) => {
-      const task: Task = {
-        id: generateId('task'),
+      const task: UnifiedTask = TaskTransformer.create({
         type,
         description,
         priority: options.priority,
         dependencies: options.dependencies ? options.dependencies.split(',') : [],
-        assignedAgent: options.assign,
-        status: 'pending',
         input: options.input ? JSON.parse(options.input) : {},
-        createdAt: new Date(),
-      };
+        metadata: { assignedAgent: options.assign },
+      });
 
       console.log(colors.green('Task created:'));
       console.log(JSON.stringify(task, null, 2));

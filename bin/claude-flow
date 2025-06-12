@@ -49,10 +49,15 @@ const deno = spawn(denoPath, ['run', '--allow-all', '--no-check', cliPath, ...pr
 });
 
 deno.on('error', (err) => {
-  console.error('Failed to start Claude-Flow:', err.message);
+  if (err.code === 'ENOENT') {
+    console.error('Error: Deno is required but not found in PATH');
+    console.error('Please install Deno: https://deno.land/manual/getting_started/installation');
+    process.exit(1);
+  }
+  console.error('Error running claude-flow:', err.message);
   process.exit(1);
 });
 
 deno.on('close', (code) => {
-  process.exit(code || 0);
+  process.exit(code);
 });

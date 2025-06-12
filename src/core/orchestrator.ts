@@ -5,14 +5,17 @@
 import {
   Config,
   SystemEvents,
-  AgentProfile,
-  AgentSession,
-  Task,
   HealthStatus,
   ComponentHealth,
-  TaskStatus,
   OrchestratorMetrics,
 } from '../utils/types.ts';
+import {
+  UnifiedTask,
+  UnifiedAgentProfile,
+  UnifiedTaskStatus,
+  UnifiedAgentStatus,
+} from '../utils/unified-types.ts';
+import { TaskTransformer, AgentTransformer } from '../utils/data-transformers.ts';
 import { IEventBus } from './event-bus.ts';
 import { ILogger } from './logger.ts';
 import { ITerminalManager } from '../terminal/manager.ts';
@@ -25,7 +28,7 @@ import { ensureDir, exists } from 'https://deno.land/std@0.208.0/fs/mod.ts';
 import { join, dirname } from 'https://deno.land/std@0.208.0/path/mod.ts';
 
 export interface ISessionManager {
-  createSession(profile: AgentProfile): Promise<AgentSession>;
+  createSession(profile: UnifiedAgentProfile): Promise<AgentSession>;
   getSession(sessionId: string): AgentSession | undefined;
   getActiveSessions(): AgentSession[];
   terminateSession(sessionId: string): Promise<void>;
@@ -38,9 +41,9 @@ export interface ISessionManager {
 export interface IOrchestrator {
   initialize(): Promise<void>;
   shutdown(): Promise<void>;
-  spawnAgent(profile: AgentProfile): Promise<string>;
+  spawnAgent(profile: UnifiedAgentProfile): Promise<string>;
   terminateAgent(agentId: string): Promise<void>;
-  assignTask(task: Task): Promise<void>;
+  assignTask(task: UnifiedTask): Promise<void>;
   getHealthStatus(): Promise<HealthStatus>;
   getMetrics(): Promise<OrchestratorMetrics>;
   performMaintenance(): Promise<void>;
@@ -48,8 +51,8 @@ export interface IOrchestrator {
 
 
 export interface SessionPersistence {
-  sessions: Array<AgentSession & { profile: AgentProfile }>;
-  taskQueue: Task[];
+  sessions: Array<AgentSession & { profile: UnifiedAgentProfile }>;
+  taskQueue: UnifiedTask[];
   metrics: {
     completedTasks: number;
     failedTasks: number;

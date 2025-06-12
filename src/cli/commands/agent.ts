@@ -5,8 +5,8 @@
 import { Command } from '@cliffy/command';
 import { Table } from '@cliffy/table';
 import { colors } from '@cliffy/ansi/colors';
-import { AgentProfile } from '../../utils/types.ts';
-import { generateId } from '../../utils/helpers.ts';
+import { UnifiedAgentProfile, UnifiedAgentType } from '../../utils/unified-types.ts';
+import { AgentTransformer } from '../../utils/data-transformers.ts';
 
 export const agentCommand = new Command()
   .description('Manage Claude-Flow agents')
@@ -28,15 +28,14 @@ export const agentCommand = new Command()
     .option('-m, --max-tasks <max:number>', 'Maximum concurrent tasks', { default: 5 })
     .option('--system-prompt <prompt:string>', 'Custom system prompt')
     .action(async (options: any, type: string) => {
-      const profile: AgentProfile = {
-        id: generateId('agent'),
+      const profile: UnifiedAgentProfile = AgentTransformer.create({
         name: options.name || `${type}-agent`,
-        type: type as any,
+        type: type as UnifiedAgentType,
         capabilities: getCapabilitiesForType(type),
         systemPrompt: options.systemPrompt || getDefaultPromptForType(type),
         maxConcurrentTasks: options.maxTasks,
         priority: options.priority,
-      };
+      });
 
       console.log(colors.green('Agent profile created:'));
       console.log(JSON.stringify(profile, null, 2));
