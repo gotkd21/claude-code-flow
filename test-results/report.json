@@ -1,32 +1,32 @@
 {
-  "timestamp": "2025-06-11T03:56:28.399Z",
+  "timestamp": "2025-06-12T18:22:52.854Z",
   "total": 3,
   "passed": 0,
   "failed": 3,
-  "duration": 11235,
+  "duration": 2877,
   "suites": [
     {
       "suite": "unit",
       "passed": false,
-      "duration": 5358
+      "duration": 1387
     },
     {
       "suite": "integration",
       "passed": false,
-      "duration": 4293
+      "duration": 900
     },
     {
       "suite": "e2e",
       "passed": false,
-      "duration": 1584
+      "duration": 590
     }
   ],
   "environment": {
-    "deno": "2.3.5",
+    "deno": "2.3.3",
     "v8": "13.7.152.6-rusty",
     "typescript": "5.8.3",
-    "platform": "linux",
-    "arch": "x86_64"
+    "platform": "darwin",
+    "arch": "aarch64"
   },
   "options": {
     "suites": [
